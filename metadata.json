@@ -1,0 +1,8 @@
+{
+  "uuid": "tlp-switcher@mahaon.dev",
+  "name": "TLP Profile Switcher",
+  "description": "Easily switch between TLP power management profiles directly from GNOME Shell panel. Create custom power profiles for different usage scenarios (performance, battery saving, balanced) and switch between them with a single click. Profiles are stored in ~/.tlp/ directory as .conf files.",
+  "version": 1,
+  "shell-version": ["45", "46", "47", "48"],
+  "url": "https://github.com/MAHAON26/tlp-switcher"
+}
