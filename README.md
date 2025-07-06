@@ -20,7 +20,7 @@ A simple GNOME Shell extension that allows you to easily switch between TLP powe
 
 ### From GNOME Extensions Website
 1. Visit [extensions.gnome.org](https://extensions.gnome.org)
-2. Search for "TLP Switcher"
+2. Search for "TLP Profile Switcher"
 3. Click "Install"
 
 ### Manual Installation
