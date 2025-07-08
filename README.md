@@ -13,7 +13,7 @@ A simple GNOME Shell extension that allows you to easily switch between TLP powe
 ## Prerequisites
 
 - TLP (The Linux Laptop) must be installed and configured
-- GNOME Shell 45, 46, 47, or 48
+- GNOME Shell 42", "43", "44", "45", "46", "47, 48
 - `pkexec` (usually comes with PolicyKit)
 
 ## Installation
@@ -45,7 +45,7 @@ Example profile structure:
 ```
 
 ### Switching Profiles
-1. Click the TLP icon in the top panel
+1. Click the speedometer icon in the top panel
 2. Select desired profile from the dropdown menu
 3. Enter your password when prompted (for sudo access)
 4. The active profile will be marked with a checkmark
@@ -55,24 +55,6 @@ You can create profiles by:
 1. Copying `/etc/tlp.conf` as a base: `cp /etc/tlp.conf ~/.tlp/myprofile.conf`
 2. Editing the copied file with your preferred settings
 3. Or clicking "Open Profiles Folder" from the extension menu
-
-## Example Profile Configurations
-
-### Performance Profile (`performance.conf`)
-```bash
-CPU_SCALING_GOVERNOR_ON_AC=performance
-CPU_SCALING_GOVERNOR_ON_BAT=performance
-CPU_ENERGY_PERF_POLICY_ON_AC=performance
-CPU_ENERGY_PERF_POLICY_ON_BAT=performance
-```
-
-### Battery Saver Profile (`battery.conf`)
-```bash
-CPU_SCALING_GOVERNOR_ON_AC=powersave
-CPU_SCALING_GOVERNOR_ON_BAT=powersave
-CPU_ENERGY_PERF_POLICY_ON_AC=power
-CPU_ENERGY_PERF_POLICY_ON_BAT=power
-```
 
 ## Troubleshooting
 
