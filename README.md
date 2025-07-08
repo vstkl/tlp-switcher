@@ -80,11 +80,3 @@ This extension is released under the GPL-2.0+ license.
 ## Contributing
 
 Feel free to report issues or submit pull requests on the project repository.
-
-## Changelog
-
-### Version 1
-- Initial release
-- Basic profile switching functionality
-- Profile detection and menu generation
-- Integration with GNOME Shell panel

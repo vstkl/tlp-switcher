@@ -119,18 +119,19 @@ const TLPProfileSwitcher = GObject.registerClass(
                 instructionItem.label.style_class = 'popup-menu-item-inactive';
                 this.menu.addMenuItem(instructionItem);
             } else {
-                // Add profiles to menu with checkmarks
+                // Add profiles to menu with radio buttons
                 profiles.forEach(profile => {
                     const item = new PopupMenu.PopupMenuItem(profile.name);
                     
-                    // Add checkmark for active profile
-                    if (currentProfile === profile.name) {
-                        const checkIcon = new St.Icon({
-                            icon_name: 'object-select-symbolic',
-                            style_class: 'popup-menu-icon'
-                        });
-                        item.insert_child_at_index(checkIcon, 0);
-                    }
+                    // Create radio button using icon
+                    const radioIcon = new St.Icon({
+                        icon_name: currentProfile === profile.name ? 'radio-checked-symbolic' : 'radio-symbolic',
+                        style_class: 'popup-menu-icon',
+                        icon_size: 14
+                    });
+                    
+                    // Add radio button to the beginning of the item
+                    item.insert_child_at_index(radioIcon, 0);
                     
                     item.connect('activate', () => {
                         this._switchProfile(profile.path);
@@ -247,7 +248,7 @@ const TLPProfileSwitcher = GObject.registerClass(
                         const success = proc.wait_finish(result);
                         if (success && proc.get_successful()) {
                             // Update menu after a short delay
-                            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
                                 this._buildMenu();
                                 return GLib.SOURCE_REMOVE;
                             });
