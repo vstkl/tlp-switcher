@@ -1,82 +1,102 @@
-# TLP Profile Switcher
+## 🧭 TLP Profile Switcher
 
-A simple GNOME Shell extension that allows you to easily switch between TLP power management profiles directly from the top panel.
+A simple GNOME Shell extension for switching [TLP](https://linrunner.de/tlp/) power profiles from the top panel.
+Switch between performance, balanced, and battery-saving modes with a single click.
 
-## Features
 
-- 🔋 Quick switching between TLP profiles with a single click
-- 📁 Automatically detects profiles from `~/.tlp/` directory
-- ✅ Shows current active profile with a checkmark
-- 🎯 Minimal and clean interface
-- 📂 Quick access to profiles folder
+### ✨ Features
 
-## Prerequisites
+* 🔋 One-click switching between TLP profiles
+* 🔍 Auto-detects `.conf` profiles from `/etc/tlp.d/`
+* ✅ Shows current active profile with a checkmark
+* 🔐 Uses `pkexec` to apply profiles with root privileges
+* 🧼 Minimal, native GNOME UI
 
-- TLP (The Linux Laptop) must be installed and configured
-- GNOME Shell 42", "43", "44", "45", "46", "47, 48
-- `pkexec` (usually comes with PolicyKit)
 
-## Installation
+### ⚙️ Prerequisites
 
-### From GNOME Extensions Website
-1. Visit [extensions.gnome.org](https://extensions.gnome.org)
-2. Search for "TLP Profile Switcher"
-3. Click "Install"
+* TLP must be installed and active
+      → e.g. `sudo pacman -S tlp` or `sudo apt install tlp`
+* `pkexec` (from PolicyKit)
+* GNOME Shell 45, 46, 47, or 48
 
-### Manual Installation
+
+### 📦 Installation
+
+#### From GNOME Extensions Website
+
+1. Visit: [extensions.gnome.org](https://extensions.gnome.org)
+2. Search: **"TLP Profile Switcher"**
+3. Click **Install**
+
+#### Manual Installation
+
 1. Download the extension files
-2. Extract to `~/.local/share/gnome-shell/extensions/tlp-switcher@mahaon.dev/`
-3. Restart GNOME Shell (Alt+F2, type `r`, press Enter)
-4. Enable the extension using GNOME Extensions app
+2. Copy to: `~/.local/share/gnome-shell/extensions/tlp-switcher@mahaon.dev/`
+3. Restart GNOME Shell: press `Alt+F2`, type `r`, hit Enter
+4. Enable the extension via GNOME Extensions app
 
-## Usage
 
-### Setting Up Profiles
-1. Create profile files in `~/.tlp/` directory
-2. Name them with `.conf` extension (e.g., `performance.conf`, `battery.conf`)
-3. Copy your TLP configuration settings to these files
+### 🛠 Usage
 
-Example profile structure:
+#### 📁 Creating Profiles
+
+Profiles are now stored in `/etc/tlp.d/` and should have `.conf` extension.
+Each profile should contain a full TLP configuration.
+
+> ✅ Profile name = filename (e.g. `battery.conf` → "battery" mode)
+
+**Steps:**
+
+```sh
+sudo mkdir -p /etc/tlp.d/
+sudo cp /etc/tlp.conf /etc/tlp.d/performance.conf
+sudo nano /etc/tlp.d/performance.conf  # modify settings
 ```
-~/.tlp/
-├── performance.conf
+
+You can create as many as you like:
+
+```
+/etc/tlp.d/
 ├── battery.conf
-└── balanced.conf
+├── balanced.conf
+└── performance.conf
 ```
 
-### Switching Profiles
-1. Click the speedometer icon in the top panel
-2. Select desired profile from the dropdown menu
-3. Enter your password when prompted (for sudo access)
-4. The active profile will be marked with a checkmark
 
-### Creating Profile Files
-You can create profiles by:
-1. Copying `/etc/tlp.conf` as a base: `cp /etc/tlp.conf ~/.tlp/myprofile.conf`
-2. Editing the copied file with your preferred settings
-3. Or clicking "Open Profiles Folder" from the extension menu
+#### 🔄 Switching Profiles
 
-## Troubleshooting
+1. Click the icon in the top panel
+2. Select a profile from the dropdown
+3. Grant permission when prompted
+4. The selected profile is copied to `/etc/tlp.conf` and applied
 
-### Extension doesn't appear in panel
-- Make sure TLP is installed: `sudo apt install tlp` (Ubuntu/Debian)
-- Restart GNOME Shell: Alt+F2, type `r`, press Enter
-- Check if extension is enabled in GNOME Extensions app
 
-### "No profiles found" message
-- Create the profiles directory: `mkdir -p ~/.tlp`
-- Add at least one `.conf` file to the directory
-- Or click "Open Profiles Folder" to access the directory
+### 🧯 Troubleshooting
 
-### Profile switching fails
-- Make sure you have sudo privileges
-- Ensure TLP service is running: `sudo systemctl status tlp`
-- Check that profile files have correct TLP syntax
+#### ⛔ No profiles found
 
-## License
+* Make sure `/etc/tlp.d/` exists: `sudo mkdir -p /etc/tlp.d/`
+* Add at least one valid `.conf` file to that directory
 
-This extension is released under the GPL-2.0+ license.
+#### 🔄 Switching fails
 
-## Contributing
+* Ensure you have sudo access via `pkexec`
+* Check if TLP is running: `sudo systemctl status tlp`
+* Verify that selected `.conf` files are syntactically valid
 
-Feel free to report issues or submit pull requests on the project repository.
+#### 🐚 Extension not visible
+
+* Ensure it's enabled in *GNOME Extensions* app
+* Restart GNOME Shell if needed (`Alt+F2`, type `r`, press Enter)
+
+
+### 🤝 Contributing
+
+Bugs, suggestions, or pull requests are welcome at
+👉 [github.com/MAHAON26/tlp-switcher](https://github.com/MAHAON26/tlp-switcher)
+
+
+### 📜 License
+
+GPL-2.0-or-later
