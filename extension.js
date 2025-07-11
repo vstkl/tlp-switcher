@@ -101,8 +101,66 @@ const TLPProfileSwitcher = GObject.registerClass(
             
             // Get profiles list
             const profiles = this._getProfiles();
-            const currentProfile = this._getCurrentActiveProfile();
             
+            // Get current profile asynchronously
+            this._getCurrentActiveProfile().then(currentProfile => {
+                // Clear menu again in case it was rebuilt while we were waiting
+                this.menu.removeAll();
+                
+                if (profiles.length === 0) {
+                    const noProfilesItem = new PopupMenu.PopupMenuItem('No profiles found', {
+                        reactive: false,
+                        can_focus: false
+                    });
+                    noProfilesItem.label.style_class = 'popup-menu-item-inactive';
+                    this.menu.addMenuItem(noProfilesItem);
+                    
+                    // Add instruction item
+                    const instructionItem = new PopupMenu.PopupMenuItem('Create .conf files in ~/.tlp/', {
+                        reactive: false,
+                        can_focus: false
+                    });
+                    instructionItem.label.style_class = 'popup-menu-item-inactive';
+                    this.menu.addMenuItem(instructionItem);
+                } else {
+                    // Add profiles to menu with radio buttons
+                    profiles.forEach(profile => {
+                        const item = new PopupMenu.PopupMenuItem(profile.name);
+                        
+                        // Create radio button using icon
+                        const radioIcon = new St.Icon({
+                            icon_name: currentProfile === profile.name ? 'radio-checked-symbolic' : 'radio-symbolic',
+                            style_class: 'popup-menu-icon',
+                            icon_size: 14
+                        });
+                        
+                        // Add radio button to the beginning of the item
+                        item.insert_child_at_index(radioIcon, 0);
+                        
+                        item.connect('activate', () => {
+                            this._switchProfile(profile.path);
+                        });
+                        this.menu.addMenuItem(item);
+                    });
+                }
+                
+                // Separator
+                this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+                
+                // Button to open profiles folder
+                const openFolderItem = new PopupMenu.PopupMenuItem('Open Profiles Folder');
+                openFolderItem.connect('activate', () => {
+                    this._openProfilesFolder();
+                });
+                this.menu.addMenuItem(openFolderItem);
+            }).catch(e => {
+                logError(e, 'Failed to get current active profile');
+                // Build menu without current profile indication
+                this._buildMenuWithoutCurrentProfile(profiles);
+            });
+        }
+        
+        _buildMenuWithoutCurrentProfile(profiles) {
             if (profiles.length === 0) {
                 const noProfilesItem = new PopupMenu.PopupMenuItem('No profiles found', {
                     reactive: false,
@@ -119,20 +177,9 @@ const TLPProfileSwitcher = GObject.registerClass(
                 instructionItem.label.style_class = 'popup-menu-item-inactive';
                 this.menu.addMenuItem(instructionItem);
             } else {
-                // Add profiles to menu with radio buttons
+                // Add profiles to menu without radio buttons
                 profiles.forEach(profile => {
                     const item = new PopupMenu.PopupMenuItem(profile.name);
-                    
-                    // Create radio button using icon
-                    const radioIcon = new St.Icon({
-                        icon_name: currentProfile === profile.name ? 'radio-checked-symbolic' : 'radio-symbolic',
-                        style_class: 'popup-menu-icon',
-                        icon_size: 14
-                    });
-                    
-                    // Add radio button to the beginning of the item
-                    item.insert_child_at_index(radioIcon, 0);
-                    
                     item.connect('activate', () => {
                         this._switchProfile(profile.path);
                     });
@@ -151,30 +198,27 @@ const TLPProfileSwitcher = GObject.registerClass(
             this.menu.addMenuItem(openFolderItem);
         }
         
-        _getCurrentActiveProfile() {
+        async _getCurrentActiveProfile() {
             try {
                 const tlpConfFile = Gio.File.new_for_path('/etc/tlp.conf');
                 if (!tlpConfFile.query_exists(null)) {
                     return null;
                 }
                 
-                const [success, contents] = tlpConfFile.load_contents(null);
-                if (!success) {
+                const tlpContent = await this._loadFileContentsAsync(tlpConfFile);
+                if (!tlpContent) {
                     return null;
                 }
                 
-                const tlpContent = new TextDecoder().decode(contents);
                 const profiles = this._getProfiles();
                 
                 for (const profile of profiles) {
                     try {
                         const profileFile = Gio.File.new_for_path(profile.path);
-                        const [profileSuccess, profileContents] = profileFile.load_contents(null);
-                        if (!profileSuccess) {
+                        const profileContent = await this._loadFileContentsAsync(profileFile);
+                        if (!profileContent) {
                             continue;
                         }
-                        
-                        const profileContent = new TextDecoder().decode(profileContents);
                         
                         if (this._compareProfiles(tlpContent, profileContent)) {
                             return profile.name;
@@ -187,9 +231,26 @@ const TLPProfileSwitcher = GObject.registerClass(
                 
                 return null;
             } catch (e) {
-                logError(e, 'Failed to get current active profile');
-                return null;
+                throw new Error('Failed to get current active profile: ' + e.message);
             }
+        }
+        
+        _loadFileContentsAsync(file) {
+            return new Promise((resolve, reject) => {
+                file.load_contents_async(null, (file, result) => {
+                    try {
+                        const [success, contents] = file.load_contents_finish(result);
+                        if (success) {
+                            const content = new TextDecoder().decode(contents);
+                            resolve(content);
+                        } else {
+                            resolve(null);
+                        }
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            });
         }
         
         _getProfiles() {
@@ -248,8 +309,12 @@ const TLPProfileSwitcher = GObject.registerClass(
                         const success = proc.wait_finish(result);
                         if (success && proc.get_successful()) {
                             // Update menu after a short delay
-                            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+                            if (this.updateMenuTimeout) {
+                                GLib.source_remove(this.updateMenuTimeout);
+                            }
+                            this.updateMenuTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
                                 this._buildMenu();
+                                this.updateMenuTimeout = null;
                                 return GLib.SOURCE_REMOVE;
                             });
                         }
@@ -291,14 +356,21 @@ const TLPProfileSwitcher = GObject.registerClass(
         }
         
         destroy() {
+            // Clean up monitor
             if (this.monitor) {
                 this.monitor.cancel();
                 this.monitor = null;
             }
             
+            // Clean up all timeouts
             if (this.rebuildTimeout) {
                 GLib.source_remove(this.rebuildTimeout);
                 this.rebuildTimeout = null;
+            }
+            
+            if (this.updateMenuTimeout) {
+                GLib.source_remove(this.updateMenuTimeout);
+                this.updateMenuTimeout = null;
             }
             
             super.destroy();
