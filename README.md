@@ -7,7 +7,7 @@ Switch between performance, balanced, and battery-saving modes with a single cli
 ### ✨ Features
 
 * 🔋 One-click switching between TLP profiles
-* 🔍 Auto-detects `.conf` profiles from `/etc/tlp.d/`
+* 🔍 Auto-detects `.conf` profiles from `~/.tlp/`
 * ✅ Shows current active profile with a checkmark
 * 🔐 Uses `pkexec` to apply profiles with root privileges
 * 🧼 Minimal, native GNOME UI
@@ -41,7 +41,7 @@ Switch between performance, balanced, and battery-saving modes with a single cli
 
 #### 📁 Creating Profiles
 
-Profiles are now stored in `/etc/tlp.d/` and should have `.conf` extension.
+Profiles are now stored in `~/.tlp/` and should have `.conf` extension.
 Each profile should contain a full TLP configuration.
 
 > ✅ Profile name = filename (e.g. `battery.conf` → "battery" mode)
@@ -49,15 +49,14 @@ Each profile should contain a full TLP configuration.
 **Steps:**
 
 ```sh
-sudo mkdir -p /etc/tlp.d/
-sudo cp /etc/tlp.conf /etc/tlp.d/performance.conf
-sudo nano /etc/tlp.d/performance.conf  # modify settings
+sudo cp /etc/tlp.conf ~/.tlp/performance.conf
+sudo nano ~/.tlp/performance.conf  # modify settings
 ```
 
 You can create as many as you like:
 
 ```
-/etc/tlp.d/
+~/.tlp/
 ├── battery.conf
 ├── balanced.conf
 └── performance.conf
@@ -76,7 +75,7 @@ You can create as many as you like:
 
 #### ⛔ No profiles found
 
-* Make sure `/etc/tlp.d/` exists: `sudo mkdir -p /etc/tlp.d/`
+* Make sure `~/.tlp/` exists: `sudo mkdir -p ~/.tlp/`
 * Add at least one valid `.conf` file to that directory
 
 #### 🔄 Switching fails
