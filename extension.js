@@ -4,27 +4,35 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-// Main indicator class
-const TLPProfileSwitcher = GObject.registerClass(
-    class TLPProfileSwitcher extends PanelMenu.Button {
+// Quick Settings Toggle with Menu
+const TLPProfileToggle = GObject.registerClass(
+    class TLPProfileToggle extends QuickSettings.QuickMenuToggle {
         _init(metadata) {
-            super._init(0.0, 'TLP Profile Switcher');
+            super._init({
+                title: 'TLP Profile',
+                subtitle: 'Power Management',
+                iconName: 'preferences-system-symbolic',
+                toggleMode: false, // Не нужен переключатель, только меню
+            });
             
             this.metadata = metadata;
             
             // Path to profiles folder
             this.profilesPath = GLib.get_home_dir() + '/.tlp';
             
-            // Panel icon with fallback
-            this._createIcon();
+            // Set up custom icon
+            this._setupCustomIcon();
             
             // Create profiles directory if it doesn't exist
             this._ensureProfilesDirectory();
+            
+            // Set up menu header
+            this.menu.setHeader('preferences-system-symbolic', 'TLP Profile', 'Power Management');
             
             // Build menu
             this._buildMenu();
@@ -33,33 +41,19 @@ const TLPProfileSwitcher = GObject.registerClass(
             this._setupDirectoryMonitor();
         }
         
-        _createIcon() {
+        _setupCustomIcon() {
             try {
                 const iconPath = this.metadata.path + '/icons/speedometer5-symbolic.svg';
                 const iconFile = Gio.File.new_for_path(iconPath);
                 
                 if (iconFile.query_exists(null)) {
-                    this.icon = new St.Icon({
-                        gicon: Gio.FileIcon.new(iconFile),
-                        style_class: 'system-status-icon'
-                    });
-                } else {
-                    // Fallback to system icon
-                    this.icon = new St.Icon({
-                        icon_name: 'preferences-system-symbolic',
-                        style_class: 'system-status-icon'
-                    });
+                    this.gicon = Gio.FileIcon.new(iconFile);
+                    this.menu.setHeader(this.gicon, 'TLP Profile', 'Power Management');
                 }
             } catch (e) {
-                // Fallback to system icon on any error
-                this.icon = new St.Icon({
-                    icon_name: 'preferences-system-symbolic',
-                    style_class: 'system-status-icon'
-                });
+                // Keep default icon on error
                 logError(e, 'Failed to load custom icon, using fallback');
             }
-            
-            this.add_child(this.icon);
         }
         
         _ensureProfilesDirectory() {
@@ -96,7 +90,7 @@ const TLPProfileSwitcher = GObject.registerClass(
         }
         
         _buildMenu() {
-            // Clear menu
+            // Clear existing menu items (except header)
             this.menu.removeAll();
             
             // Get profiles list
@@ -107,12 +101,19 @@ const TLPProfileSwitcher = GObject.registerClass(
                 // Clear menu again in case it was rebuilt while we were waiting
                 this.menu.removeAll();
                 
+                // Update subtitle with current profile
+                if (currentProfile) {
+                    this.subtitle = `Active: ${currentProfile}`;
+                } else {
+                    this.subtitle = 'Power Management';
+                }
+                
                 if (profiles.length === 0) {
                     const noProfilesItem = new PopupMenu.PopupMenuItem('No profiles found', {
                         reactive: false,
                         can_focus: false
                     });
-                    noProfilesItem.label.style_class = 'popup-menu-item-inactive';
+                    noProfilesItem.label.style_class = 'popup-inactive-text';
                     this.menu.addMenuItem(noProfilesItem);
                     
                     // Add instruction item
@@ -120,10 +121,12 @@ const TLPProfileSwitcher = GObject.registerClass(
                         reactive: false,
                         can_focus: false
                     });
-                    instructionItem.label.style_class = 'popup-menu-item-inactive';
+                    instructionItem.label.style_class = 'popup-inactive-text';
                     this.menu.addMenuItem(instructionItem);
                 } else {
-                    // Add profiles to menu with radio buttons
+                    // Add profiles section
+                    this._profilesSection = new PopupMenu.PopupMenuSection();
+                    
                     profiles.forEach(profile => {
                         const item = new PopupMenu.PopupMenuItem(profile.name);
                         
@@ -140,19 +143,26 @@ const TLPProfileSwitcher = GObject.registerClass(
                         item.connect('activate', () => {
                             this._switchProfile(profile.path);
                         });
-                        this.menu.addMenuItem(item);
+                        
+                        this._profilesSection.addMenuItem(item);
                     });
+                    
+                    this.menu.addMenuItem(this._profilesSection);
                 }
                 
-                // Separator
+                // Add separator
                 this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
                 
                 // Button to open profiles folder
-                const openFolderItem = new PopupMenu.PopupMenuItem('Open Profiles Folder');
-                openFolderItem.connect('activate', () => {
+                const openFolderItem = this.menu.addAction('Open Profiles Folder', () => {
                     this._openProfilesFolder();
                 });
-                this.menu.addMenuItem(openFolderItem);
+                
+                // Add settings button (if you have preferences)
+                // const settingsItem = this.menu.addAction('Settings', () => {
+                //     this.extensionObject.openPreferences();
+                // });
+                
             }).catch(e => {
                 logError(e, 'Failed to get current active profile');
                 // Build menu without current profile indication
@@ -161,12 +171,14 @@ const TLPProfileSwitcher = GObject.registerClass(
         }
         
         _buildMenuWithoutCurrentProfile(profiles) {
+            this.menu.removeAll();
+            
             if (profiles.length === 0) {
                 const noProfilesItem = new PopupMenu.PopupMenuItem('No profiles found', {
                     reactive: false,
                     can_focus: false
                 });
-                noProfilesItem.label.style_class = 'popup-menu-item-inactive';
+                noProfilesItem.label.style_class = 'popup-inactive-text';
                 this.menu.addMenuItem(noProfilesItem);
                 
                 // Add instruction item
@@ -174,28 +186,30 @@ const TLPProfileSwitcher = GObject.registerClass(
                     reactive: false,
                     can_focus: false
                 });
-                instructionItem.label.style_class = 'popup-menu-item-inactive';
+                instructionItem.label.style_class = 'popup-inactive-text';
                 this.menu.addMenuItem(instructionItem);
             } else {
-                // Add profiles to menu without radio buttons
+                // Add profiles section
+                this._profilesSection = new PopupMenu.PopupMenuSection();
+                
                 profiles.forEach(profile => {
                     const item = new PopupMenu.PopupMenuItem(profile.name);
                     item.connect('activate', () => {
                         this._switchProfile(profile.path);
                     });
-                    this.menu.addMenuItem(item);
+                    this._profilesSection.addMenuItem(item);
                 });
+                
+                this.menu.addMenuItem(this._profilesSection);
             }
             
-            // Separator
+            // Add separator
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             
             // Button to open profiles folder
-            const openFolderItem = new PopupMenu.PopupMenuItem('Open Profiles Folder');
-            openFolderItem.connect('activate', () => {
+            const openFolderItem = this.menu.addAction('Open Profiles Folder', () => {
                 this._openProfilesFolder();
             });
-            this.menu.addMenuItem(openFolderItem);
         }
         
         async _getCurrentActiveProfile() {
@@ -378,22 +392,45 @@ const TLPProfileSwitcher = GObject.registerClass(
     }
 );
 
+// System Indicator for Quick Settings
+const TLPSystemIndicator = GObject.registerClass(
+    class TLPSystemIndicator extends QuickSettings.SystemIndicator {
+        _init(metadata) {
+            super._init();
+            
+            // Create toggle for quick settings
+            this._toggle = new TLPProfileToggle(metadata);
+            this.quickSettingsItems.push(this._toggle);
+            
+            // Optionally add a panel indicator (small icon in top bar)
+            // this._indicator = this._addIndicator();
+            // this._indicator.icon_name = 'preferences-system-symbolic';
+            // this._indicator.visible = true;
+        }
+        
+        destroy() {
+            this._toggle.destroy();
+            super.destroy();
+        }
+    }
+);
+
 // Main extension class
 export default class TLPProfileSwitcherExtension extends Extension {
     constructor(metadata) {
         super(metadata);
-        this.tlpSwitcher = null;
+        this.indicator = null;
     }
     
     enable() {
-        this.tlpSwitcher = new TLPProfileSwitcher(this.metadata);
-        Main.panel.addToStatusArea('tlp-profile-switcher', this.tlpSwitcher);
+        this.indicator = new TLPSystemIndicator(this.metadata);
+        Main.panel.statusArea.quickSettings.addExternalIndicator(this.indicator, 2);
     }
     
     disable() {
-        if (this.tlpSwitcher) {
-            this.tlpSwitcher.destroy();
-            this.tlpSwitcher = null;
+        if (this.indicator) {
+            this.indicator.destroy();
+            this.indicator = null;
         }
     }
 }
