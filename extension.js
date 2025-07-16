@@ -17,43 +17,39 @@ const TLPProfileToggle = GObject.registerClass(
                 title: 'TLP Profile',
                 subtitle: 'Power Management',
                 iconName: 'preferences-system-symbolic',
-                toggleMode: false, // Не нужен переключатель, только меню
+                toggleMode: false,
             });
             
             this.metadata = metadata;
+            this.profilesPath = GLib.build_filenamev([GLib.get_home_dir(), '.tlp']);
             
-            // Path to profiles folder
-            this.profilesPath = GLib.get_home_dir() + '/.tlp';
-            
-            // Set up custom icon
+            // Initialize components
             this._setupCustomIcon();
-            
-            // Create profiles directory if it doesn't exist
             this._ensureProfilesDirectory();
-            
-            // Set up menu header
-            this.menu.setHeader('preferences-system-symbolic', 'TLP Profile', 'Power Management');
-            
-            // Build menu
-            this._buildMenu();
-            
-            // Monitor changes in profiles folder
+            this._setupMenuHeader();
             this._setupDirectoryMonitor();
+            
+            // Build initial menu
+            this._buildMenu();
         }
         
         _setupCustomIcon() {
             try {
-                const iconPath = this.metadata.path + '/icons/speedometer5-symbolic.svg';
+                const iconPath = GLib.build_filenamev([this.metadata.path, 'icons', 'speedometer5-symbolic.svg']);
                 const iconFile = Gio.File.new_for_path(iconPath);
                 
                 if (iconFile.query_exists(null)) {
                     this.gicon = Gio.FileIcon.new(iconFile);
-                    this.menu.setHeader(this.gicon, 'TLP Profile', 'Power Management');
+                    this.iconName = null; // Clear default icon
                 }
             } catch (e) {
-                // Keep default icon on error
                 logError(e, 'Failed to load custom icon, using fallback');
             }
+        }
+        
+        _setupMenuHeader() {
+            const headerIcon = this.gicon || 'preferences-system-symbolic';
+            this.menu.setHeader(headerIcon, 'TLP Profile', 'Power Management');
         }
         
         _ensureProfilesDirectory() {
@@ -70,193 +66,136 @@ const TLPProfileToggle = GObject.registerClass(
         _setupDirectoryMonitor() {
             try {
                 const profilesDir = Gio.File.new_for_path(this.profilesPath);
-                if (profilesDir.query_exists(null)) {
-                    this.monitor = profilesDir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
-                    this.monitor.connect('changed', () => {
-                        // Debounce menu rebuilding
-                        if (this.rebuildTimeout) {
-                            GLib.source_remove(this.rebuildTimeout);
-                        }
-                        this.rebuildTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-                            this._buildMenu();
-                            this.rebuildTimeout = null;
-                            return GLib.SOURCE_REMOVE;
-                        });
-                    });
-                }
+                if (!profilesDir.query_exists(null)) return;
+                
+                this.monitor = profilesDir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
+                this.monitor.connect('changed', this._onDirectoryChanged.bind(this));
             } catch (e) {
                 logError(e, 'Failed to setup directory monitor');
             }
         }
         
-        _buildMenu() {
-            // Clear existing menu items (except header)
-            this.menu.removeAll();
+        _onDirectoryChanged() {
+            // Debounce menu rebuilding
+            if (this._rebuildTimeout) {
+                GLib.source_remove(this._rebuildTimeout);
+            }
             
-            // Get profiles list
-            const profiles = this._getProfiles();
-            
-            // Get current profile asynchronously
-            this._getCurrentActiveProfile().then(currentProfile => {
-                // Clear menu again in case it was rebuilt while we were waiting
-                this.menu.removeAll();
-                
-                // Update subtitle with current profile
-                if (currentProfile) {
-                    this.subtitle = `Active: ${currentProfile}`;
-                } else {
-                    this.subtitle = 'Power Management';
-                }
-                
-                if (profiles.length === 0) {
-                    const noProfilesItem = new PopupMenu.PopupMenuItem('No profiles found', {
-                        reactive: false,
-                        can_focus: false
-                    });
-                    noProfilesItem.label.style_class = 'popup-inactive-text';
-                    this.menu.addMenuItem(noProfilesItem);
-                    
-                    // Add instruction item
-                    const instructionItem = new PopupMenu.PopupMenuItem('Create .conf files in ~/.tlp/', {
-                        reactive: false,
-                        can_focus: false
-                    });
-                    instructionItem.label.style_class = 'popup-inactive-text';
-                    this.menu.addMenuItem(instructionItem);
-                } else {
-                    // Add profiles section
-                    this._profilesSection = new PopupMenu.PopupMenuSection();
-                    
-                    profiles.forEach(profile => {
-                        const item = new PopupMenu.PopupMenuItem(profile.name);
-                        
-                        // Create radio button using icon
-                        const radioIcon = new St.Icon({
-                            icon_name: currentProfile === profile.name ? 'radio-checked-symbolic' : 'radio-symbolic',
-                            style_class: 'popup-menu-icon',
-                            icon_size: 14
-                        });
-                        
-                        // Add radio button to the beginning of the item
-                        item.insert_child_at_index(radioIcon, 0);
-                        
-                        item.connect('activate', () => {
-                            this._switchProfile(profile.path);
-                        });
-                        
-                        this._profilesSection.addMenuItem(item);
-                    });
-                    
-                    this.menu.addMenuItem(this._profilesSection);
-                }
-                
-                // Add separator
-                this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-                
-                // Button to open profiles folder
-                const openFolderItem = this.menu.addAction('Open Profiles Folder', () => {
-                    this._openProfilesFolder();
-                });
-                
-                // Add settings button (if you have preferences)
-                // const settingsItem = this.menu.addAction('Settings', () => {
-                //     this.extensionObject.openPreferences();
-                // });
-                
-            }).catch(e => {
-                logError(e, 'Failed to get current active profile');
-                // Build menu without current profile indication
-                this._buildMenuWithoutCurrentProfile(profiles);
+            this._rebuildTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+                this._buildMenu();
+                this._rebuildTimeout = null;
+                return GLib.SOURCE_REMOVE;
             });
         }
         
-        _buildMenuWithoutCurrentProfile(profiles) {
+        async _buildMenu() {
+            // Clear existing menu items
             this.menu.removeAll();
             
-            if (profiles.length === 0) {
-                const noProfilesItem = new PopupMenu.PopupMenuItem('No profiles found', {
-                    reactive: false,
-                    can_focus: false
-                });
-                noProfilesItem.label.style_class = 'popup-inactive-text';
-                this.menu.addMenuItem(noProfilesItem);
-                
-                // Add instruction item
-                const instructionItem = new PopupMenu.PopupMenuItem('Create .conf files in ~/.tlp/', {
-                    reactive: false,
-                    can_focus: false
-                });
-                instructionItem.label.style_class = 'popup-inactive-text';
-                this.menu.addMenuItem(instructionItem);
-            } else {
-                // Add profiles section
-                this._profilesSection = new PopupMenu.PopupMenuSection();
-                
-                profiles.forEach(profile => {
-                    const item = new PopupMenu.PopupMenuItem(profile.name);
-                    item.connect('activate', () => {
-                        this._switchProfile(profile.path);
-                    });
-                    this._profilesSection.addMenuItem(item);
-                });
-                
-                this.menu.addMenuItem(this._profilesSection);
+            // Get profiles and current active profile
+            const profiles = this._getProfiles();
+            let currentProfile = null;
+            
+            try {
+                currentProfile = await this._getCurrentActiveProfile();
+            } catch (e) {
+                logError(e, 'Failed to get current active profile');
             }
             
-            // Add separator
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            // Update subtitle
+            this.subtitle = currentProfile ? `Active: ${currentProfile}` : 'Power Management';
             
-            // Button to open profiles folder
-            const openFolderItem = this.menu.addAction('Open Profiles Folder', () => {
-                this._openProfilesFolder();
+            // Build menu content
+            this._buildMenuContent(profiles, currentProfile);
+        }
+        
+        _buildMenuContent(profiles, currentProfile) {
+            if (profiles.length === 0) {
+                this._addNoProfilesMessage();
+                return;
+            }
+            
+            // Add profiles section
+            const profilesSection = new PopupMenu.PopupMenuSection();
+            
+            profiles.forEach(profile => {
+                const item = new PopupMenu.PopupMenuItem(profile.name);
+                
+                // Add radio button icon
+                const radioIcon = new St.Icon({
+                    icon_name: currentProfile === profile.name ? 'radio-checked-symbolic' : 'radio-symbolic',
+                    style_class: 'popup-menu-icon',
+                    icon_size: 14
+                });
+                
+                item.insert_child_at_index(radioIcon, 0);
+                item.connect('activate', () => this._switchProfile(profile.path));
+                
+                profilesSection.addMenuItem(item);
             });
+            
+            this.menu.addMenuItem(profilesSection);
+            
+            // Add separator and actions
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            this.menu.addAction('Open Profiles Folder', () => this._openProfilesFolder());
+        }
+        
+        _addNoProfilesMessage() {
+            const noProfilesItem = new PopupMenu.PopupMenuItem('No profiles found', {
+                reactive: false,
+                can_focus: false
+            });
+            noProfilesItem.label.style_class = 'popup-inactive-text';
+            this.menu.addMenuItem(noProfilesItem);
+            
+            const instructionItem = new PopupMenu.PopupMenuItem('Create .conf files in ~/.tlp/', {
+                reactive: false,
+                can_focus: false
+            });
+            instructionItem.label.style_class = 'popup-inactive-text';
+            this.menu.addMenuItem(instructionItem);
+            
+            // Add separator and folder action
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            this.menu.addAction('Open Profiles Folder', () => this._openProfilesFolder());
         }
         
         async _getCurrentActiveProfile() {
-            try {
-                const tlpConfFile = Gio.File.new_for_path('/etc/tlp.conf');
-                if (!tlpConfFile.query_exists(null)) {
-                    return null;
-                }
-                
-                const tlpContent = await this._loadFileContentsAsync(tlpConfFile);
-                if (!tlpContent) {
-                    return null;
-                }
-                
-                const profiles = this._getProfiles();
-                
-                for (const profile of profiles) {
-                    try {
-                        const profileFile = Gio.File.new_for_path(profile.path);
-                        const profileContent = await this._loadFileContentsAsync(profileFile);
-                        if (!profileContent) {
-                            continue;
-                        }
-                        
-                        if (this._compareProfiles(tlpContent, profileContent)) {
-                            return profile.name;
-                        }
-                    } catch (e) {
-                        // Ignore errors reading individual files
-                        continue;
-                    }
-                }
-                
+            const tlpConfFile = Gio.File.new_for_path('/etc/tlp.conf');
+            if (!tlpConfFile.query_exists(null)) {
                 return null;
-            } catch (e) {
-                throw new Error('Failed to get current active profile: ' + e.message);
             }
+            
+            const tlpContent = await this._loadFileContentsAsync(tlpConfFile);
+            if (!tlpContent) return null;
+            
+            const profiles = this._getProfiles();
+            
+            for (const profile of profiles) {
+                try {
+                    const profileFile = Gio.File.new_for_path(profile.path);
+                    const profileContent = await this._loadFileContentsAsync(profileFile);
+                    
+                    if (profileContent && this._compareProfiles(tlpContent, profileContent)) {
+                        return profile.name;
+                    }
+                } catch (e) {
+                    // Continue checking other profiles
+                    continue;
+                }
+            }
+            
+            return null;
         }
         
         _loadFileContentsAsync(file) {
             return new Promise((resolve, reject) => {
-                file.load_contents_async(null, (file, result) => {
+                file.load_contents_async(null, (source, result) => {
                     try {
-                        const [success, contents] = file.load_contents_finish(result);
+                        const [success, contents] = source.load_contents_finish(result);
                         if (success) {
-                            const content = new TextDecoder().decode(contents);
-                            resolve(content);
+                            resolve(new TextDecoder().decode(contents));
                         } else {
                             resolve(null);
                         }
@@ -269,6 +208,7 @@ const TLPProfileToggle = GObject.registerClass(
         
         _getProfiles() {
             const profiles = [];
+            
             try {
                 const profilesDir = Gio.File.new_for_path(this.profilesPath);
                 if (!profilesDir.query_exists(null)) {
@@ -296,7 +236,7 @@ const TLPProfileToggle = GObject.registerClass(
                 
                 enumerator.close(null);
                 
-                // Sort by name
+                // Sort profiles alphabetically
                 profiles.sort((a, b) => a.name.localeCompare(b.name));
             } catch (e) {
                 logError(e, 'Failed to get profiles list');
@@ -306,31 +246,25 @@ const TLPProfileToggle = GObject.registerClass(
         }
         
         _switchProfile(profilePath) {
+            const command = [
+                'pkexec',
+                'sh', '-c',
+                `cp "${profilePath}" /etc/tlp.conf && tlp start`
+            ];
+            
             try {
-                const command = [
-                    'pkexec',
-                    'sh', '-c',
-                    `cp "${profilePath}" /etc/tlp.conf && systemctl restart tlp`
-                ];
-                
                 const proc = Gio.Subprocess.new(
                     command,
                     Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
                 );
                 
-                proc.wait_async(null, (proc, result) => {
+                proc.wait_async(null, (source, result) => {
                     try {
-                        const success = proc.wait_finish(result);
-                        if (success && proc.get_successful()) {
-                            // Update menu after a short delay
-                            if (this.updateMenuTimeout) {
-                                GLib.source_remove(this.updateMenuTimeout);
-                            }
-                            this.updateMenuTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-                                this._buildMenu();
-                                this.updateMenuTimeout = null;
-                                return GLib.SOURCE_REMOVE;
-                            });
+                        const success = source.wait_finish(result);
+                        if (success && source.get_successful()) {
+                            this._scheduleMenuUpdate();
+                        } else {
+                            logError(new Error('Profile switch failed'), `Failed to switch to profile: ${profilePath}`);
                         }
                     } catch (e) {
                         logError(e, 'Failed to switch profile');
@@ -341,11 +275,22 @@ const TLPProfileToggle = GObject.registerClass(
             }
         }
         
+        _scheduleMenuUpdate() {
+            if (this._updateMenuTimeout) {
+                GLib.source_remove(this._updateMenuTimeout);
+            }
+            
+            this._updateMenuTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+                this._buildMenu();
+                this._updateMenuTimeout = null;
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+        
         _openProfilesFolder() {
             try {
-                const command = ['xdg-open', this.profilesPath];
                 Gio.Subprocess.new(
-                    command,
+                    ['xdg-open', this.profilesPath],
                     Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
                 );
             } catch (e) {
@@ -376,16 +321,15 @@ const TLPProfileToggle = GObject.registerClass(
                 this.monitor = null;
             }
             
-            // Clean up all timeouts
-            if (this.rebuildTimeout) {
-                GLib.source_remove(this.rebuildTimeout);
-                this.rebuildTimeout = null;
-            }
+            // Clean up timeouts
+            [this._rebuildTimeout, this._updateMenuTimeout].forEach(timeout => {
+                if (timeout) {
+                    GLib.source_remove(timeout);
+                }
+            });
             
-            if (this.updateMenuTimeout) {
-                GLib.source_remove(this.updateMenuTimeout);
-                this.updateMenuTimeout = null;
-            }
+            this._rebuildTimeout = null;
+            this._updateMenuTimeout = null;
             
             super.destroy();
         }
@@ -398,18 +342,12 @@ const TLPSystemIndicator = GObject.registerClass(
         _init(metadata) {
             super._init();
             
-            // Create toggle for quick settings
             this._toggle = new TLPProfileToggle(metadata);
             this.quickSettingsItems.push(this._toggle);
-            
-            // Optionally add a panel indicator (small icon in top bar)
-            // this._indicator = this._addIndicator();
-            // this._indicator.icon_name = 'preferences-system-symbolic';
-            // this._indicator.visible = true;
         }
         
         destroy() {
-            this._toggle.destroy();
+            this._toggle?.destroy();
             super.destroy();
         }
     }
@@ -419,18 +357,45 @@ const TLPSystemIndicator = GObject.registerClass(
 export default class TLPProfileSwitcherExtension extends Extension {
     constructor(metadata) {
         super(metadata);
-        this.indicator = null;
+        this._indicator = null;
+        this._settings = null;
+        this._widthChangedId = null;
     }
     
     enable() {
-        this.indicator = new TLPSystemIndicator(this.metadata);
-        Main.panel.statusArea.quickSettings.addExternalIndicator(this.indicator, 2);
+        this._settings = this.getSettings();
+        this._indicator = new TLPSystemIndicator(this.metadata);
+        
+        // Get width from settings and add to Quick Settings
+        const widgetWidth = this._settings.get_int('widget-width');
+        Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator, widgetWidth);
+        
+        // Listen for width changes
+        this._widthChangedId = this._settings.connect('changed::widget-width', () => {
+            this._recreateIndicator();
+        });
+    }
+    
+    _recreateIndicator() {
+        if (this._indicator) {
+            this._indicator.destroy();
+            this._indicator = new TLPSystemIndicator(this.metadata);
+            const newWidth = this._settings.get_int('widget-width');
+            Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator, newWidth);
+        }
     }
     
     disable() {
-        if (this.indicator) {
-            this.indicator.destroy();
-            this.indicator = null;
+        if (this._widthChangedId) {
+            this._settings.disconnect(this._widthChangedId);
+            this._widthChangedId = null;
         }
+        
+        if (this._indicator) {
+            this._indicator.destroy();
+            this._indicator = null;
+        }
+        
+        this._settings = null;
     }
 }

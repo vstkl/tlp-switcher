@@ -10,5 +10,6 @@
   ],
   "url": "https://github.com/MAHAON26/tlp-switcher",
   "uuid": "tlp-switcher@mahaon.dev",
-  "version": 4
+  "version": 5,
+  "settings-schema": "org.gnome.shell.extensions.tlp-profile-switcher"
 }
