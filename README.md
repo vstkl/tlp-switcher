@@ -32,7 +32,7 @@ Switch between performance, balanced, and battery-saving modes with a single cli
 #### Manual Installation
 
 1. Download the extension files
-2. Copy to: `~/.local/share/gnome-shell/extensions/tlp-switcher@mahaon.dev/`
+2. Unzip to: `~/.local/share/gnome-shell/extensions/`
 3. Restart GNOME Shell: press `Alt+F2`, type `r`, hit Enter
 4. Enable the extension via GNOME Extensions app
 
