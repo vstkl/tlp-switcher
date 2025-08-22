@@ -6,13 +6,6 @@ import GLib from "gi://GLib";
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-const {
-    build_filenamev,
-    get_user_special_dir,
-    UserDirectory,
-    get_language_names,
-} = GLib;
-
 export default class TLPProfileSwitcherPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
