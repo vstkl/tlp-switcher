@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="gnome-shell-extensions">
-  <schema id="org.gnome.shell.extensions.tlp-profile-switcher2" path="/org/gnome/shell/extensions/tlp-profile-switcher2/">
+  <schema id="org.gnome.shell.extensions.tlp-profile-switcher" path="/org/gnome/shell/extensions/tlp-profile-switcher/">
     <key name="widget-width" type="i">
       <default>1</default>
       <summary>Widget width in Quick Settings</summary>
