@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="gnome-shell-extensions">
-  <schema id="org.gnome.shell.extensions.tlp-profile-switcher" path="/org/gnome/shell/extensions/tlp-profile-switcher/">
+  <schema id="org.gnome.shell.extensions.tlp-profile-switcher2" path="/org/gnome/shell/extensions/tlp-profile-switcher2/">
     <key name="widget-width" type="i">
       <default>1</default>
       <summary>Widget width in Quick Settings</summary>
       <description>Number of columns the widget should occupy in Quick Settings (1 or 2)</description>
       <range min="1" max="2"/>
+    </key>
+    <key name="config-file" type="s">
+      <default>''</default>
+      <summary>Path to the TLP config file</summary>
     </key>
   </schema>
 </schemalist>
